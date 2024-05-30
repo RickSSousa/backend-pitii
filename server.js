@@ -8,15 +8,16 @@ const { Pool } = require("pg");
 const app = express();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+require("dotenv").config();
 
 const PORT = process.env.PORT || 5000;
 
 const pool = new Pool({
-  user: "postgres",
-  host: "192.140.88.235",
-  database: "pitii",
-  password: "123",
-  port: 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 });
 
 const JWT_SECRET =
