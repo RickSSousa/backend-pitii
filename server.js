@@ -36,7 +36,14 @@ const containerClient =
   blobServiceClient.getContainerClient(AZURE_CONTAINER_NAME);
 
 app.use(bodyParser.json());
-app.use(cors());
+const corsOptions = {
+  origin: "*",
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  preflightContinue: false,
+  optionsSuccessStatus: 204,
+};
+
+app.use(cors(corsOptions));
 
 const storage = multer.memoryStorage();
 const upload = multer({ storage });
