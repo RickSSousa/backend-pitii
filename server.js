@@ -140,9 +140,7 @@ app.delete("/api/users/:id", async (req, res) => {
 
 app.get("/api/products", async (req, res) => {
   try {
-    const result = await pool.query(
-      "SELECT id, name, price, image_url FROM products"
-    );
+    const result = await pool.query("SELECT * FROM products");
     res.json(result.rows);
   } catch (error) {
     console.error(error);
