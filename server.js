@@ -38,8 +38,14 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
+const corsOptions = {
+  origin: "https://frontend-pitii.vercel.app", // Substitua pela URL do seu frontend
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
-app.use(cors());
 app.use("/uploads", express.static(uploadsDir));
 
 const storage = multer.diskStorage({
