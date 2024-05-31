@@ -8,6 +8,7 @@ const { Pool } = require("pg");
 const app = express();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const { BlobServiceClient } = require("@azure/storage-blob");
 require("dotenv").config();
 
 const PORT = process.env.PORT || 5000;
@@ -23,8 +24,14 @@ const pool = new Pool({
   },
 });
 
-const JWT_SECRET =
-  "JwtjPn2oHPe2EYImTkx8BYFAtBmiIdIDaiMEdIuLGSoUpCVLkq+JuMJqOBhqvnElXLHo5MAHlRQVs+V++lw1YTvhBZIHtCleUwWwO3WA+T6nmmhjeZvfNfLWsn1jhvK7eQS57GAG9OkpUdJbCHEqJuhNa5kNOZpjGQbHHdtLN76eVBvriHpk8AL5CT+zrKGI50fe9EwdsqrTiK1/rkJsaKH5WKSS8/05di88wdBGvYGHxivB7Vbp0c0fcsYZ+cfpBOEbC8quw/JPA3YBTJ4WGmNozAetDbQJXyxMYhYeQQIm7vPjgt2jbvZbnOwMCGrVr23lXYZn4ZCjtc7jglvx0A==";
+const blobServiceClient = BlobServiceClient.fromConnectionString(
+  process.env.AZURE_STORAGE_CONNECTION_STRING
+);
+const containerClient = blobServiceClient.getContainerClient(
+  process.env.AZURE_CONTAINER_NAME
+);
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const uploadsDir = path.join(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -150,8 +157,13 @@ app.get("/api/products", async (req, res) => {
 
 app.post("/api/products", upload.single("image"), async (req, res) => {
   const { name, price } = req.body;
-  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+  const blobName = `${Date.now()}-${req.file.originalname}`;
+  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
   try {
+    await blockBlobClient.uploadData(req.file.buffer);
+    const imageUrl = blockBlobClient.url;
+
     const result = await pool.query(
       "INSERT INTO products (name, price, image_url) VALUES ($1, $2, $3) RETURNING *",
       [name, price, imageUrl]
@@ -166,9 +178,15 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
 app.put("/api/products/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { name, price } = req.body;
-  const imageUrl = req.file
-    ? `/uploads/${req.file.filename}`
-    : req.body.imageUrl;
+  let imageUrl = req.body.imageUrl;
+
+  if (req.file) {
+    const blobName = `${Date.now()}-${req.file.originalname}`;
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+    await blockBlobClient.uploadData(req.file.buffer);
+    imageUrl = blockBlobClient.url;
+  }
+
   try {
     const result = await pool.query(
       "UPDATE products SET name = $1, price = $2, image_url = $3 WHERE id = $4 RETURNING *",
