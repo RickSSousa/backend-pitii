@@ -2,7 +2,6 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const cors = require("cors");
 const multer = require("multer");
-const path = require("path");
 const { Pool } = require("pg");
 const { BlobServiceClient } = require("@azure/storage-blob");
 const bcrypt = require("bcrypt");
