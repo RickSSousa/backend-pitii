@@ -39,7 +39,7 @@ if (!fs.existsSync(uploadsDir)) {
 }
 
 const corsOptions = {
-  origin: "https://frontend-pitii.vercel.app", // Substitua pela URL do seu frontend
+  origin: "https://backend-pitii-v2.vercel.app",
   methods: ["GET", "POST", "PUT", "DELETE"],
   allowedHeaders: ["Content-Type", "Authorization"],
 };
