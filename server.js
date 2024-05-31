@@ -8,7 +8,6 @@ const { Pool } = require("pg");
 const app = express();
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
-const { BlobServiceClient } = require("@azure/storage-blob");
 require("dotenv").config();
 
 const PORT = process.env.PORT || 5000;
@@ -24,13 +23,6 @@ const pool = new Pool({
   },
 });
 
-const blobServiceClient = BlobServiceClient.fromConnectionString(
-  process.env.AZURE_STORAGE_CONNECTION_STRING
-);
-const containerClient = blobServiceClient.getContainerClient(
-  process.env.AZURE_CONTAINER_NAME
-);
-
 const JWT_SECRET = process.env.JWT_SECRET;
 
 const uploadsDir = path.join(__dirname, "uploads");
@@ -38,14 +30,8 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir);
 }
 
-const corsOptions = {
-  origin: "https://backend-pitii-v2.vercel.app",
-  methods: ["GET", "POST", "PUT", "DELETE"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-};
-
-app.use(cors(corsOptions));
 app.use(bodyParser.json());
+app.use(cors());
 app.use("/uploads", express.static(uploadsDir));
 
 const storage = multer.diskStorage({
@@ -163,13 +149,8 @@ app.get("/api/products", async (req, res) => {
 
 app.post("/api/products", upload.single("image"), async (req, res) => {
   const { name, price } = req.body;
-  const blobName = `${Date.now()}-${req.file.originalname}`;
-  const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-
+  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
   try {
-    await blockBlobClient.uploadData(req.file.buffer);
-    const imageUrl = blockBlobClient.url;
-
     const result = await pool.query(
       "INSERT INTO products (name, price, image_url) VALUES ($1, $2, $3) RETURNING *",
       [name, price, imageUrl]
@@ -184,15 +165,9 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
 app.put("/api/products/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { name, price } = req.body;
-  let imageUrl = req.body.imageUrl;
-
-  if (req.file) {
-    const blobName = `${Date.now()}-${req.file.originalname}`;
-    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-    await blockBlobClient.uploadData(req.file.buffer);
-    imageUrl = blockBlobClient.url;
-  }
-
+  const imageUrl = req.file
+    ? `/uploads/${req.file.filename}`
+    : req.body.imageUrl;
   try {
     const result = await pool.query(
       "UPDATE products SET name = $1, price = $2, image_url = $3 WHERE id = $4 RETURNING *",
