@@ -3,12 +3,13 @@ const bodyParser = require("body-parser");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
 const { Pool } = require("pg");
-const app = express();
+const { BlobServiceClient } = require("@azure/storage-blob");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
+
+const app = express();
 
 const PORT = process.env.PORT || 5000;
 
@@ -24,25 +25,20 @@ const pool = new Pool({
 });
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const AZURE_STORAGE_CONNECTION_STRING =
+  process.env.AZURE_STORAGE_CONNECTION_STRING;
+const AZURE_CONTAINER_NAME = process.env.AZURE_CONTAINER_NAME;
 
-const uploadsDir = path.join(__dirname, "uploads");
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir);
-}
+const blobServiceClient = BlobServiceClient.fromConnectionString(
+  AZURE_STORAGE_CONNECTION_STRING
+);
+const containerClient =
+  blobServiceClient.getContainerClient(AZURE_CONTAINER_NAME);
 
 app.use(bodyParser.json());
 app.use(cors());
-app.use("/uploads", express.static(uploadsDir));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, "uploads/");
-  },
-  filename: (req, file, cb) => {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
 app.get("/", (req, res) => {
@@ -149,7 +145,16 @@ app.get("/api/products", async (req, res) => {
 
 app.post("/api/products", upload.single("image"), async (req, res) => {
   const { name, price } = req.body;
-  const imageUrl = req.file ? `/uploads/${req.file.filename}` : null;
+  let imageUrl = null;
+
+  if (req.file) {
+    const blobName = `${Date.now()}-${req.file.originalname}`;
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+    await blockBlobClient.uploadData(req.file.buffer);
+    imageUrl = `https://${process.env.AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${AZURE_CONTAINER_NAME}/${blobName}`;
+  }
+
   try {
     const result = await pool.query(
       "INSERT INTO products (name, price, image_url) VALUES ($1, $2, $3) RETURNING *",
@@ -165,9 +170,16 @@ app.post("/api/products", upload.single("image"), async (req, res) => {
 app.put("/api/products/:id", upload.single("image"), async (req, res) => {
   const { id } = req.params;
   const { name, price } = req.body;
-  const imageUrl = req.file
-    ? `/uploads/${req.file.filename}`
-    : req.body.imageUrl;
+  let imageUrl = req.body.imageUrl;
+
+  if (req.file) {
+    const blobName = `${Date.now()}-${req.file.originalname}`;
+    const blockBlobClient = containerClient.getBlockBlobClient(blobName);
+
+    await blockBlobClient.uploadData(req.file.buffer);
+    imageUrl = `https://${process.env.AZURE_STORAGE_ACCOUNT_NAME}.blob.core.windows.net/${AZURE_CONTAINER_NAME}/${blobName}`;
+  }
+
   try {
     const result = await pool.query(
       "UPDATE products SET name = $1, price = $2, image_url = $3 WHERE id = $4 RETURNING *",
