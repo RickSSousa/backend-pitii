@@ -139,6 +139,70 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
+app.get("/api/products/:id/ingredients", async (req, res) => {
+  const { id } = req.params;
+  try {
+    const result = await pool.query(
+      `SELECT i.id, i.name 
+       FROM ingredients i 
+       JOIN product_ingredients pi ON i.id = pi.ingredient_id 
+       WHERE pi.product_id = $1`,
+      [id]
+    );
+    console.log(result.rows); // Log para verificar o retorno
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Failed to fetch ingredients" });
+  }
+});
+
+app.post("/api/products/:id/ingredients", async (req, res) => {
+  const { id } = req.params;
+  const { ingredientName } = req.body;
+  try {
+    const productResult = await pool.query(
+      "SELECT * FROM products WHERE id = $1",
+      [id]
+    );
+    if (productResult.rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+
+    const ingredientResult = await pool.query(
+      "INSERT INTO ingredients (name) VALUES ($1) RETURNING *",
+      [ingredientName]
+    );
+    const ingredient = ingredientResult.rows[0];
+
+    await pool.query(
+      "INSERT INTO product_ingredients (product_id, ingredient_id) VALUES ($1, $2)",
+      [id, ingredient.id]
+    );
+    res.status(201).json(ingredient);
+  } catch (error) {
+    console.error("Error adding ingredient:", error);
+    res.status(500).json({ error: "Failed to add ingredient" });
+  }
+});
+
+app.delete(
+  "/api/products/:productId/ingredients/:ingredientId",
+  async (req, res) => {
+    const { productId, ingredientId } = req.params;
+    try {
+      await pool.query(
+        "DELETE FROM product_ingredients WHERE product_id = $1 AND ingredient_id = $2",
+        [productId, ingredientId]
+      );
+      res.status(204).end();
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: "Failed to remove ingredient" });
+    }
+  }
+);
+
 app.get("/api/products", async (req, res) => {
   try {
     const result = await pool.query("SELECT * FROM products");
